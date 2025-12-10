@@ -27,11 +27,15 @@ mkdir -p config
 touch config/tokens.txt
 
 Archivo config/tokens.txt
-Añade los tokens de cliente que usarán la ruta /upload (uno por línea
+Añade los tokens de cliente que usarán la ruta /upload (uno por línea):
 
-Endpoint	Método	Función	Autenticación
-/upload	POST	Sube y guarda una imagen en disco.	Token de cliente (del archivo)
-/admin/reload-tokens	POST	Recarga la lista de tokens del archivo.	Token Maestro (variable de entorno)
+# Ejemplo de tokens de cliente (solo para la ruta /upload)
+CLIENTE-A-TOKEN-123
+WEBAPP-PROD-98765
+
+Endpoint	            Método	Función	Autenticación
+/upload	              POST	  Sube y guarda una imagen en disco.	Token de cliente (del archivo)
+/admin/reload-tokens	POST	  Recarga la lista de tokens del archivo.	Token Maestro (variable de entorno)
 
 Ejemplo de Invocación (Subida de Imagen):
 
