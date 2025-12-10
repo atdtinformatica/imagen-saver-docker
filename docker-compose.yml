@@ -21,6 +21,6 @@ services:
       # 1. Persistencia de imágenes (Escritura)
       - ./storage/images:/app/uploads
       # 2. Persistencia de logs (Escritura)
-      - ./storage/logs:/app/logs
+      - ./logs:/app/logs
       # 3. Archivo de tokens (Solo lectura)
       - ./config/tokens.txt:/app/config/tokens.txt:ro
