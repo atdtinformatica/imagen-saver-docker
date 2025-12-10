@@ -1,0 +1,3 @@
+# Ejemplo de tokens de cliente (solo para la ruta /upload)
+CLIENTE-A-TOKEN-123
+WEBAPP-PROD-98765
