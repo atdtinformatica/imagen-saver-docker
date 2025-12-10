@@ -25,3 +25,18 @@ mkdir -p storage/images
 mkdir -p storage/logs
 mkdir -p config
 touch config/tokens.txt
+
+Archivo config/tokens.txt
+Añade los tokens de cliente que usarán la ruta /upload (uno por línea
+
+Endpoint	Método	Función	Autenticación
+/upload	POST	Sube y guarda una imagen en disco.	Token de cliente (del archivo)
+/admin/reload-tokens	POST	Recarga la lista de tokens del archivo.	Token Maestro (variable de entorno)
+
+Ejemplo de Invocación (Subida de Imagen):
+
+curl -X POST http://localhost:8080/upload \
+  -H "Authorization: Bearer CLIENTE-A-TOKEN-123" \
+  -F "image=@./local_image.jpg" \
+  -F "save_path=users/premium/profile.jpg"
+
