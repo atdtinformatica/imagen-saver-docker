@@ -1,0 +1,26 @@
+### `docker-compose.yml`
+
+version: '3.8'
+
+services:
+  image-saver:
+    build: .
+    container_name: image_saver_app
+    restart: always
+    ports:
+      - "8080:5000" # Mapea puerto 8080 del host a 5000 del contenedor
+
+    environment:
+      # --- VARIABLES DE CONFIGURACIÓN ---
+      MASTER_TOKEN: MI-TOKEN-ADMIN-SECRETO-XYZ # <--- ¡CAMBIAR ESTE VALOR!
+      UPLOAD_FOLDER: /app/uploads
+      TOKEN_FILE_PATH: /app/config/tokens.txt
+
+    volumes:
+      # Volúmenes en el host:
+      # 1. Persistencia de imágenes (Escritura)
+      - ./storage/images:/app/uploads
+      # 2. Persistencia de logs (Escritura)
+      - ./storage/logs:/app/logs
+      # 3. Archivo de tokens (Solo lectura)
+      - ./config/tokens.txt:/app/config/tokens.txt:ro
