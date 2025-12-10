@@ -22,7 +22,7 @@ Crea los directorios necesarios en tu sistema host. Estos serán mapeados a los 
 
 ```bash
 mkdir -p storage/images
-mkdir -p storage/logs
+mkdir -p logs
 mkdir -p config
 touch config/tokens.txt
 
