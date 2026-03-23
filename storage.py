@@ -46,6 +46,9 @@ class StorageBackend(ABC):
     async def save(self, data: bytes, key: str, mime_type: str) -> str:
         """Persist *data* at *key*. Returns a URL or relative path string."""
 
+    async def check(self) -> None:
+        """Startup connectivity/credentials check. Raises RuntimeError on failure."""
+
 
 class LocalStorage(StorageBackend):
     def __init__(self, upload_folder: str) -> None:
@@ -63,8 +66,17 @@ class LocalStorage(StorageBackend):
 
     def _write(self, path: str, data: bytes) -> None:
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "wb") as fh:
-            fh.write(data)
+        tmp = path + ".tmp"
+        try:
+            with open(tmp, "wb") as fh:
+                fh.write(data)
+            os.replace(tmp, path)  # atomic on POSIX same-filesystem
+        except Exception:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
 
 
 class S3Storage(StorageBackend):
@@ -109,6 +121,15 @@ class S3Storage(StorageBackend):
         if self.endpoint_url:
             return f"{self.endpoint_url.rstrip('/')}/{self.bucket}/{key}"
         return f"https://{self.bucket}.s3.{self.region}.amazonaws.com/{key}"
+
+    async def check(self) -> None:
+        import aioboto3
+        try:
+            session = aioboto3.Session()
+            async with session.client("s3", **self._client_kwargs()) as s3:
+                await s3.head_bucket(Bucket=self.bucket)
+        except Exception as exc:
+            raise RuntimeError(f"S3 connectivity check failed for bucket '{self.bucket}': {exc}") from exc
 
     async def save(self, data: bytes, key: str, mime_type: str) -> str:
         import aioboto3  # lazy import — only required for S3 backend

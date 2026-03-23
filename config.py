@@ -29,7 +29,9 @@ class Config:
     # Upload constraints
     MAX_FILE_SIZE: int = int(os.environ.get("MAX_FILE_SIZE", str(10 * 1024 * 1024)))  # 10 MB
     ALLOWED_MIME_TYPES: frozenset = frozenset(
-        os.environ.get("ALLOWED_MIME_TYPES", "image/jpeg,image/png").split(",")
+        t.strip()
+        for t in os.environ.get("ALLOWED_MIME_TYPES", "image/jpeg,image/png").split(",")
+        if t.strip()  # guard against empty string from ALLOWED_MIME_TYPES=""
     )
 
     # Rate limiting (slowapi format: "60/minute", "10/second", etc.)
@@ -40,3 +42,18 @@ class Config:
     # Empty = ignore XFF entirely and use the raw TCP connection IP.
     # Example: "10.0.0.0/8,172.16.0.0/12"
     TRUSTED_PROXIES: str = os.environ.get("TRUSTED_PROXIES", "")
+
+    @classmethod
+    def validate(cls) -> None:
+        """Raise ValueError if any config value is invalid. Call at startup."""
+        errors = []
+        if cls.TOKEN_RELOAD_INTERVAL < 1:
+            errors.append(f"TOKEN_RELOAD_INTERVAL must be >= 1, got {cls.TOKEN_RELOAD_INTERVAL}")
+        if not cls.ALLOWED_MIME_TYPES:
+            errors.append("ALLOWED_MIME_TYPES must not be empty")
+        if cls.MAX_FILE_SIZE <= 0:
+            errors.append(f"MAX_FILE_SIZE must be > 0, got {cls.MAX_FILE_SIZE}")
+        if cls.STORAGE_BACKEND not in ("local", "s3"):
+            errors.append(f"STORAGE_BACKEND must be 'local' or 's3', got {cls.STORAGE_BACKEND!r}")
+        if errors:
+            raise ValueError("Configuration errors:\n" + "\n".join(f"  - {e}" for e in errors))

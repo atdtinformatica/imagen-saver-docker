@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import ipaddress
 import logging
 import os
@@ -10,7 +11,6 @@ from fastapi import Depends, FastAPI, Form, Header, HTTPException, Request, Uplo
 from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from config import Config
@@ -138,14 +138,41 @@ _WEAK_TOKENS = {
 }
 
 
+def _extract_token(authorization: str | None) -> str | None:
+    if not authorization:
+        return None
+    parts = authorization.split()
+    if len(parts) == 2 and parts[0].lower() == "bearer":
+        return parts[1]
+    if len(parts) == 1:
+        return parts[0]
+    return None
+
+
+def _rate_limit_key(request: Request) -> str:
+    """Rate limit per token (isolated bucket per client), fall back to IP."""
+    auth = request.headers.get("authorization")
+    token = _extract_token(auth)
+    if token and token_store.contains(token):
+        # Hash so the raw token is never stored in the rate limit backend
+        return "tok:" + hashlib.sha256(token.encode()).hexdigest()[:16]
+    return "ip:" + (request.client.host if request.client else "unknown")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Validate config values before anything else
+    Config.validate()
+
     # Refuse to start with a missing or known-weak master token
     if not Config.MASTER_TOKEN or Config.MASTER_TOKEN in _WEAK_TOKENS or len(Config.MASTER_TOKEN) < 16:
         raise RuntimeError(
             "MASTER_TOKEN is not set or is too weak. "
             "Set a strong random value (≥16 chars) in your .env file before starting."
         )
+
+    # Verify storage backend is reachable before accepting traffic
+    await storage.check()
 
     count = await token_store.load(Config.TOKEN_FILE_PATH)
     logger.info(
@@ -163,7 +190,7 @@ async def lifespan(app: FastAPI):
 
 # ── FastAPI app ────────────────────────────────────────────────────────────────
 
-limiter = Limiter(key_func=get_remote_address)
+limiter = Limiter(key_func=_rate_limit_key)
 
 app = FastAPI(
     lifespan=lifespan,
@@ -219,17 +246,6 @@ class _ProxyMiddleware(BaseHTTPMiddleware):
 app.add_middleware(_ProxyMiddleware)
 
 # ── Auth ───────────────────────────────────────────────────────────────────────
-
-
-def _extract_token(authorization: str | None) -> str | None:
-    if not authorization:
-        return None
-    parts = authorization.split()
-    if len(parts) == 2 and parts[0].lower() == "bearer":
-        return parts[1]
-    if len(parts) == 1:
-        return parts[0]
-    return None
 
 
 def require_token(
