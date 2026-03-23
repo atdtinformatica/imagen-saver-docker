@@ -11,7 +11,7 @@ class Config:
     # Token management
     TOKEN_FILE_PATH: str = os.environ.get("TOKEN_FILE_PATH", "/app/config/tokens.txt")
     MASTER_TOKEN: str = os.environ.get("MASTER_TOKEN", "")
-    TOKEN_RELOAD_INTERVAL: int = int(os.environ.get("TOKEN_RELOAD_INTERVAL", "30"))
+    TOKEN_RELOAD_INTERVAL: int = int(os.environ.get("TOKEN_RELOAD_INTERVAL", "10"))
 
     # Storage backend: "local" or "s3"
     STORAGE_BACKEND: str = os.environ.get("STORAGE_BACKEND", "local")

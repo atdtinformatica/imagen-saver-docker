@@ -62,9 +62,9 @@ Three source files, all application logic:
 
 `TokenStore` is a thin async wrapper around a `set`. It is populated at startup and by a background `asyncio` task that reloads from `TOKEN_FILE_PATH` every `TOKEN_RELOAD_INTERVAL` seconds (default 30s).
 
-In Kubernetes, tokens live in `Secret/image-saver-tokens` (mounted as `/app/config/tokens.txt`). When the Secret is updated, K8s propagates the change to pod volume mounts within ~1 minute; the background reload task picks it up automatically — no rolling restart needed.
+In Kubernetes, tokens live in `Secret/image-saver-tokens` (mounted as `/app/config/tokens.txt`). When the Secret is updated, K8s propagates the change via an atomic symlink swap within ~1 minute. The background watcher checks the file's mtime every `TOKEN_RELOAD_INTERVAL` seconds (default 10s) and reloads only when it changes — all replicas pick it up automatically with no rolling restart needed.
 
-`/admin/reload-tokens` triggers an immediate reload on the pod that receives the request. For full fleet reload, rely on the background task or do a rolling restart.
+`/admin/reload-tokens` triggers an immediate reload on the pod that receives the request. For full fleet reload, rely on the background watcher or do a rolling restart.
 
 ### Concurrency
 

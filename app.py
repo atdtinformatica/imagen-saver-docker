@@ -84,18 +84,28 @@ class TokenStore:
 token_store = TokenStore()
 
 
-async def _periodic_reload() -> None:
-    """Background task: reload tokens from file every TOKEN_RELOAD_INTERVAL seconds.
+async def _watch_token_file() -> None:
+    """Background task: reload tokens only when the file actually changes.
 
-    This keeps all replicas in sync when the token file is updated via a
-    Kubernetes Secret volume (which propagates within ~1 minute).
+    Uses mtime polling instead of unconditional reads. This works correctly
+    with Kubernetes Secret volume mounts, which update via an atomic symlink
+    swap — the new file gets a fresh mtime, triggering a reload within
+    TOKEN_RELOAD_INTERVAL seconds (default 10s).
     """
+    last_mtime: float = 0.0
     while True:
         await asyncio.sleep(Config.TOKEN_RELOAD_INTERVAL)
+        try:
+            mtime = os.path.getmtime(Config.TOKEN_FILE_PATH)
+        except OSError:
+            continue
+        if mtime == last_mtime:
+            continue
+        last_mtime = mtime
         count = await token_store.load(Config.TOKEN_FILE_PATH)
         if count >= 0:
             logger.info(
-                f"Periodic token reload: {count} tokens",
+                f"Token file changed: {count} tokens reloaded",
                 extra={"client_ip": "BACKGROUND"},
             )
 
@@ -126,7 +136,7 @@ async def lifespan(app: FastAPI):
         f"Startup: {count} tokens loaded, backend={Config.STORAGE_BACKEND}",
         extra={"client_ip": "STARTUP"},
     )
-    reload_task = asyncio.create_task(_periodic_reload())
+    reload_task = asyncio.create_task(_watch_token_file())
     yield
     reload_task.cancel()
     try:
