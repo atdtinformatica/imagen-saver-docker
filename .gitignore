@@ -11,3 +11,6 @@ __pycache__/
 
 # Archivos de Docker/Build
 .dockerignore
+
+# Local secrets — never commit
+.env

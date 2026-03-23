@@ -6,9 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Local dev (Docker Compose):**
 ```bash
-docker-compose up -d --build
-docker-compose logs -f image-saver
-docker-compose down
+cp .env.example .env        # fill in secrets, only needed once
+docker compose up -d --build
+docker compose logs -f image-saver
+docker compose down
 ```
 
 **Test the API:**
