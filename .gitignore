@@ -1,15 +1,15 @@
-# Entorno virtual de Python
+# Python virtual environments
 .venv
 venv/
 
-# Logs y archivos temporales de Python
+# Python cache
 *.pyc
 __pycache__/
 
-# Archivos de Gunicorn
+# Gunicorn
 *.pid
 
-# Archivos de Docker/Build
+# Docker build artifacts
 .dockerignore
 
 # Local secrets — never commit

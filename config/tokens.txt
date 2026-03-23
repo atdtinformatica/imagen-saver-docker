@@ -1,3 +1,3 @@
-# Ejemplo de tokens de cliente (solo para la ruta /upload)
+# Client upload tokens — one per line (used for /upload endpoint only)
 CLIENTE-A-TOKEN-123
 WEBAPP-PROD-98765

@@ -22,7 +22,7 @@ COPY --from=builder /install /usr/local
 # Copy application source
 COPY app.py config.py storage.py ./
 
-# Non-root user (UID 1001 must match token file owner on host for local storage)
+# Non-root user — UID 1001 must match the token file owner on the host when using local storage
 RUN groupadd --gid 1001 appgroup \
     && useradd --uid 1001 --gid 1001 --no-create-home appuser \
     && chown -R appuser:appgroup /app

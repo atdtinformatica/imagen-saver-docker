@@ -1,76 +1,121 @@
-# 📸 Image Saver Service (image-saver-docker)
+# Image Saver Service
 
-Servicio web ligero y seguro, contenedorizado con Docker y escrito en Python (Flask), diseñado para recibir imágenes (JPEG/PNG) a través de una API REST y persistirlas en el disco del servidor host mediante volúmenes.
+A lightweight, secure, containerized image upload API written in Python (FastAPI). Accepts JPEG/PNG images via a REST API and persists them to local disk or S3-compatible object storage (including DigitalOcean Spaces).
 
-Este proyecto implementa autenticación por tokens segregados, validación estricta del contenido del archivo y configuración flexible a través de variables de entorno.
+## Features
 
-## ✨ Características Principales
+- **Token authentication** — upload tokens managed via a file; hot-reload without restart
+- **Content validation** — real MIME type detection via `python-magic` (rejects renamed files)
+- **Dual storage backends** — local filesystem or S3/Spaces (`STORAGE_BACKEND=local|s3`)
+- **Kubernetes-ready** — HPA, PDB, read-only filesystem, token reload via Secret volume
+- **Rate limiting** — per-token isolated buckets via `slowapi`
+- **Security** — path traversal protection, file size cap, atomic writes, startup validation
 
-* **Autenticación Segura:** Acceso controlado mediante tokens listados en un archivo mapeado.
-* **Validación de Contenido:** Verifica la firma binaria del archivo (MIME Type real) para aceptar **solo imágenes JPEG y PNG**, rechazando archivos renombrados.
-* **Persistencia:** Utiliza volúmenes de Docker para guardar archivos en el host, creando automáticamente las estructuras de directorio (`save_path`) especificadas por el cliente.
-* **Administración Remota:** Ruta de administración con Token Maestro dedicado para recargar la lista de tokens sin reiniciar el servicio.
-* **Observabilidad:** Logging detallado que captura la IP real del cliente (gracias a `ProxyFix` si hay un *reverse proxy*).
-
-## 🚀 Cómo Usar (Despliegue)
-
-La forma más sencilla de levantar este servicio es utilizando `docker-compose`.
-
-### A. Estructura de Carpetas en el Host
-
-Crea los directorios necesarios en tu sistema host. Estos serán mapeados a los volúmenes del contenedor.
+## Quick Start (Docker Compose)
 
 ```bash
-mkdir -p storage/images
-mkdir -p logs
-mkdir -p config
-touch config/tokens.txt
+# 1. Create required directories
+mkdir -p storage/images logs config
 
-Archivo config/tokens.txt
-Añade los tokens de cliente que usarán la ruta /upload (uno por línea):
+# 2. Add at least one upload token
+echo "YOUR-CLIENT-TOKEN" > config/tokens.txt
 
-# Ejemplo de tokens de cliente (solo para la ruta /upload)
-CLIENTE-A-TOKEN-123
-WEBAPP-PROD-98765
+# 3. Configure secrets
+cp .env.example .env
+# Edit .env and set MASTER_TOKEN to a strong random value (≥16 chars)
 
-## 💡 Endpoints de la API
+# 4. Start
+docker compose up -d --build
+```
 
-| Endpoint               | Método      | Función                                 | Autenticación Requerida                    |
-| :---                   | :---        | :---                                    | :---                                       |
-| `/upload`              | `POST`      | Sube y guarda una imagen en disco.      | Token de Cliente (desde `tokens.txt`)      |
-| `/admin/reload-tokens` | `POST`      | Recarga la lista de tokens del archivo. | **Token Maestro** (`MASTER_TOKEN` env var) |
+## API Endpoints
 
+| Endpoint | Method | Description | Auth |
+|----------|--------|-------------|------|
+| `/upload` | `POST` | Upload and save an image | Client token (`tokens.txt`) |
+| `/admin/reload-tokens` | `POST` | Reload token list from file | `MASTER_TOKEN` |
+| `/health` | `GET` | Liveness/readiness check | None |
 
-Ejemplo de Invocación (Subida de Imagen):
+### Upload an image
 
+```bash
 curl -X POST http://localhost:8080/upload \
-  -H "Authorization: Bearer CLIENTE-A-TOKEN-123" \
-  -F "image=@./local_image.jpg" \
-  -F "save_path=users/premium/profile.jpg"
+  -H "Authorization: Bearer YOUR-CLIENT-TOKEN" \
+  -F "image=@./photo.jpg" \
+  -F "save_path=users/profile.jpg"
+```
 
-## 🔒 Administración y Recarga de Tokens
+**Response:**
+```json
+{ "message": "Image saved successfully.", "path": "users/profile.jpg" }
+```
 
-El endpoint `/admin/reload-tokens` permite recargar el archivo `tokens.txt` en la memoria de los workers de Gunicorn **sin necesidad de reiniciar el contenedor**.
-
-**Requisitos:**
-1.  Debe enviarse por el método `POST`.
-2.  Debe usar el valor exacto definido en la variable de entorno **`MASTER_TOKEN`**.
-
-### Ejemplo de Invocación (Recarga de Tokens)
-
-Supongamos que tu `MASTER_TOKEN` es `MI-TOKEN-ADMIN-SECRETO-XYZ`:
+### Reload tokens
 
 ```bash
 curl -X POST http://localhost:8080/admin/reload-tokens \
-  -H "Authorization: Bearer MI-TOKEN-ADMIN-SECRETO-XYZ"
+  -H "Authorization: Bearer YOUR-MASTER-TOKEN"
+```
 
-Si la recarga es exitosa, la respuesta será un JSON con el nuevo conteo de tokens, y un mensaje de éxito aparecerá en los logs:
+**Response:**
+```json
+{ "message": "Tokens reloaded.", "total_tokens": 3 }
+```
 
-{
-  "message": "Tokens recargados exitosamente.",
-  "total_tokens": 5
-}
+## Configuration
 
-🚨 Nota de Seguridad Crítica: El MASTER_TOKEN es la llave de administración del servicio. Nunca debe ser compartido con clientes de subida de imágenes y nunca debe ser listado en el archivo tokens.txt. Asegúrate de que esta variable de entorno sea un valor complejo y secreto.
+All configuration is via environment variables. Copy `.env.example` to `.env` for local use.
 
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MASTER_TOKEN` | *(required)* | Admin token for `/admin/reload-tokens`. Must be ≥16 chars. |
+| `STORAGE_BACKEND` | `local` | `local` or `s3` |
+| `UPLOAD_FOLDER` | `/app/uploads` | Upload directory (local backend) |
+| `TOKEN_FILE_PATH` | `/app/config/tokens.txt` | Path to upload tokens file |
+| `TOKEN_RELOAD_INTERVAL` | `10` | Seconds between token file mtime checks |
+| `MAX_FILE_SIZE` | `10485760` | Max upload size in bytes (default 10 MB) |
+| `ALLOWED_MIME_TYPES` | `image/jpeg,image/png` | Comma-separated allowed MIME types |
+| `RATE_LIMIT` | `60/minute` | Per-token rate limit (slowapi format) |
+| `TRUSTED_PROXIES` | *(empty)* | CIDRs to trust `X-Forwarded-For` from (e.g. `10.0.0.0/8`) |
+| `S3_BUCKET` | *(empty)* | S3 bucket name |
+| `S3_ENDPOINT_URL` | *(empty)* | S3 endpoint (e.g. `https://nyc3.digitaloceanspaces.com`) |
+| `S3_ACCESS_KEY` | *(empty)* | S3 access key |
+| `S3_SECRET_KEY` | *(empty)* | S3 secret key |
+| `S3_REGION` | `us-east-1` | S3 region |
+| `S3_PUBLIC_URL` | *(empty)* | Optional CDN base URL for returned paths |
+| `LOG_FOLDER` | `/app/logs` | Log directory (empty = stdout only, recommended for K8s) |
+| `WEB_CONCURRENCY` | `4` | Gunicorn worker count |
 
+## Token file format
+
+One token per line. Lines starting with `#` are ignored.
+
+```
+# Upload tokens
+CLIENT-A-TOKEN-abc123
+CLIENT-B-TOKEN-xyz789
+```
+
+## Kubernetes Deployment
+
+Manifests are in `k8s/`. Before deploying:
+
+1. Copy `k8s/secret.example.yaml` → `k8s/secret.yaml`, fill in all values
+2. Set your domain and TLS secret name in `k8s/ingress.yaml`
+3. Set your container image in `k8s/deployment.yaml`
+4. Set `TRUSTED_PROXIES` in `k8s/configmap.yaml` to your ingress controller CIDR
+
+```bash
+kubectl apply -f k8s/secret.yaml
+kubectl apply -f k8s/configmap.yaml
+kubectl apply -f k8s/deployment.yaml -f k8s/service.yaml \
+              -f k8s/ingress.yaml -f k8s/hpa.yaml -f k8s/pdb.yaml
+```
+
+The deployment scales from 2 to 10 replicas based on CPU/memory. Token file updates propagate automatically via Secret volume mounts within ~60s.
+
+## Security Notes
+
+- `MASTER_TOKEN` must never appear in `tokens.txt` — it is a separate credential
+- Never commit `.env` or `k8s/secret.yaml` to version control
+- For K8s, enable etcd encryption at rest to protect Secret values
