@@ -1,0 +1,35 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: image-saver
+  namespace: default
+  annotations:
+    # TLS certificate provisioned automatically by cert-manager
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+
+    # nginx-level rate limiting (first line of defence, before the app)
+    nginx.ingress.kubernetes.io/limit-rps: "10"
+    nginx.ingress.kubernetes.io/limit-connections: "20"
+
+    # Restrict upload body size to match MAX_FILE_SIZE (10 MB + headers)
+    nginx.ingress.kubernetes.io/proxy-body-size: "11m"
+
+    # Forward real client IP to the app
+    nginx.ingress.kubernetes.io/use-forwarded-headers: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - images.example.com   # replace with your domain
+      secretName: image-saver-tls
+  rules:
+    - host: images.example.com  # replace with your domain
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: image-saver
+                port:
+                  name: http

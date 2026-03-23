@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: image-saver
+  namespace: default
+  labels:
+    app: image-saver
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: image-saver
+  template:
+    metadata:
+      labels:
+        app: image-saver
+    spec:
+      terminationGracePeriodSeconds: 40  # > gunicorn graceful-timeout (30s)
+
+      containers:
+        - name: image-saver
+          image: your-registry/image-saver:latest  # replace with your image
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 5000
+
+          envFrom:
+            - configMapRef:
+                name: image-saver-config
+            - secretRef:
+                name: image-saver-secrets
+
+          volumeMounts:
+            - name: tokens
+              mountPath: /app/config
+              readOnly: true
+
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1001
+            runAsGroup: 1001
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+
+      volumes:
+        - name: tokens
+          secret:
+            secretName: image-saver-tokens
+            items:
+              - key: tokens.txt
+                path: tokens.txt
+
+        # tmpfs for python-magic and any other runtime temp needs
+        - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 64Mi

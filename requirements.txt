@@ -1,4 +1,8 @@
-# requirements.txt
-Flask
-gunicorn
-python-magic
+fastapi==0.115.12
+uvicorn[standard]==0.34.0
+gunicorn==23.0.0
+python-magic==0.4.27
+python-multipart==0.0.20
+slowapi==0.1.9
+werkzeug==3.1.3
+aioboto3==13.3.0
