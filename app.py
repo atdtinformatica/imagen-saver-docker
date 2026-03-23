@@ -129,8 +129,23 @@ def _build_storage() -> StorageBackend:
 # ── App lifecycle ──────────────────────────────────────────────────────────────
 
 
+_WEAK_TOKENS = {
+    "",
+    "CHANGE_ME_BEFORE_DEPLOY",
+    "ADMIN_MASTER_TOKEN_DEFAULT_CHANGE_ME",
+    "change-me-strong-random-value",
+}
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Refuse to start with a missing or known-weak master token
+    if not Config.MASTER_TOKEN or Config.MASTER_TOKEN in _WEAK_TOKENS or len(Config.MASTER_TOKEN) < 16:
+        raise RuntimeError(
+            "MASTER_TOKEN is not set or is too weak. "
+            "Set a strong random value (≥16 chars) in your .env file before starting."
+        )
+
     count = await token_store.load(Config.TOKEN_FILE_PATH)
     logger.info(
         f"Startup: {count} tokens loaded, backend={Config.STORAGE_BACKEND}",
@@ -244,15 +259,21 @@ async def upload_image(
     ip = request.client.host if request.client else "unknown"
     log = {"client_ip": ip}
 
-    # File size check — read one byte beyond the limit to detect oversized files
-    data = await image.read(Config.MAX_FILE_SIZE + 1)
-    if len(data) > Config.MAX_FILE_SIZE:
-        logger.warning(
-            f"Upload rejected: file exceeds {Config.MAX_FILE_SIZE}B", extra=log
-        )
-        raise HTTPException(
-            413, f"File exceeds maximum allowed size of {Config.MAX_FILE_SIZE} bytes."
-        )
+    # File size check — stream in chunks so oversized files are rejected
+    # immediately without buffering the full body into memory.
+    chunks: list[bytes] = []
+    size = 0
+    async for chunk in image:
+        size += len(chunk)
+        if size > Config.MAX_FILE_SIZE:
+            logger.warning(
+                f"Upload rejected: file exceeds {Config.MAX_FILE_SIZE}B", extra=log
+            )
+            raise HTTPException(
+                413, f"File exceeds maximum allowed size of {Config.MAX_FILE_SIZE} bytes."
+            )
+        chunks.append(chunk)
+    data = b"".join(chunks)
 
     # Content-based MIME type validation
     try:

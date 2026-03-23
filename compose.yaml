@@ -23,8 +23,8 @@ services:
       S3_REGION:        "${S3_REGION:-us-east-1}"
       S3_PUBLIC_URL:    "${S3_PUBLIC_URL:-}"
 
-      # ── Auth ───────────────────────────────────────────────
-      MASTER_TOKEN: "${MASTER_TOKEN:-CHANGE_ME_BEFORE_DEPLOY}"
+      # ── Auth — must be set in .env (service refuses to start without it) ──
+      MASTER_TOKEN: "${MASTER_TOKEN}"
 
       # ── Token management ───────────────────────────────────
       TOKEN_FILE_PATH: /app/config/tokens.txt

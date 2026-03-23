@@ -34,6 +34,8 @@ spec:
             - name: tokens
               mountPath: /app/config
               readOnly: true
+            - name: tmp
+              mountPath: /tmp
 
           resources:
             requests:
