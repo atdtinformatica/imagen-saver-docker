@@ -34,12 +34,12 @@ EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')" || exit 1
 
-# 4 uvicorn workers — tune via K8s resource limits or WEB_CONCURRENCY env var
-CMD ["gunicorn", "app:app", \
-     "--worker-class", "uvicorn.workers.UvicornWorker", \
-     "--workers", "4", \
-     "--bind", "0.0.0.0:5000", \
-     "--timeout", "60", \
-     "--graceful-timeout", "30", \
-     "--access-logfile", "-", \
-     "--error-logfile", "-"]
+# Worker count: set WEB_CONCURRENCY env var to override (default: 4)
+CMD gunicorn app:app \
+    --worker-class uvicorn.workers.UvicornWorker \
+    --workers ${WEB_CONCURRENCY:-4} \
+    --bind 0.0.0.0:5000 \
+    --timeout 60 \
+    --graceful-timeout 30 \
+    --access-logfile - \
+    --error-logfile -

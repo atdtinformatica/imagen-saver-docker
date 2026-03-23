@@ -34,3 +34,9 @@ class Config:
 
     # Rate limiting (slowapi format: "60/minute", "10/second", etc.)
     RATE_LIMIT: str = os.environ.get("RATE_LIMIT", "60/minute")
+
+    # Comma-separated IPs or CIDRs of trusted reverse proxies.
+    # X-Forwarded-For is only accepted from these addresses.
+    # Empty = ignore XFF entirely and use the raw TCP connection IP.
+    # Example: "10.0.0.0/8,172.16.0.0/12"
+    TRUSTED_PROXIES: str = os.environ.get("TRUSTED_PROXIES", "")

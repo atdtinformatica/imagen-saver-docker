@@ -35,6 +35,9 @@ services:
       ALLOWED_MIME_TYPES: "image/jpeg,image/png"
       RATE_LIMIT: "60/minute"
 
+      # ── Proxy — set to your reverse proxy IP/CIDR to trust X-Forwarded-For ──
+      TRUSTED_PROXIES: "${TRUSTED_PROXIES:-}"
+
       # ── Logging ────────────────────────────────────────────
       LOG_FOLDER: /app/logs
 

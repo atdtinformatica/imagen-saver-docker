@@ -1,4 +1,5 @@
 import asyncio
+import ipaddress
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -177,13 +178,41 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 storage: StorageBackend = _build_storage()
 
 
+def _parse_trusted_proxies(raw: str) -> list:
+    networks = []
+    for entry in raw.split(","):
+        entry = entry.strip()
+        if not entry:
+            continue
+        try:
+            networks.append(ipaddress.ip_network(entry, strict=False))
+        except ValueError:
+            logger.warning(f"Invalid TRUSTED_PROXIES entry ignored: {entry!r}")
+    return networks
+
+
+_trusted_proxies = _parse_trusted_proxies(Config.TRUSTED_PROXIES)
+
+
 class _ProxyMiddleware(BaseHTTPMiddleware):
-    """Populate request.client from X-Forwarded-For when behind a reverse proxy."""
+    """Populate request.client from X-Forwarded-For only when the request
+    arrives from a trusted proxy IP/CIDR (TRUSTED_PROXIES env var).
+    If TRUSTED_PROXIES is empty, XFF is ignored and the raw TCP IP is used.
+    """
 
     async def dispatch(self, request: Request, call_next):
-        xff = request.headers.get("x-forwarded-for")
-        if xff:
-            request.scope["client"] = (xff.split(",")[0].strip(), 0)
+        if _trusted_proxies:
+            xff = request.headers.get("x-forwarded-for")
+            if xff:
+                client_ip = (request.scope.get("client") or ("", 0))[0]
+                try:
+                    addr = ipaddress.ip_address(client_ip)
+                    if any(addr in net for net in _trusted_proxies):
+                        real_ip = xff.split(",")[0].strip()
+                        if real_ip:
+                            request.scope["client"] = (real_ip, 0)
+                except ValueError:
+                    pass  # malformed connecting IP — leave scope unchanged
         return await call_next(request)
 
 

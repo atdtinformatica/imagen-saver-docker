@@ -8,14 +8,23 @@ from werkzeug.utils import secure_filename
 logger = logging.getLogger(__name__)
 
 
+_MAX_PATH_LENGTH = 512   # total characters in the raw input
+_MAX_PATH_DEPTH = 10     # maximum number of directory levels
+
+
 def sanitize_path(raw: str) -> str | None:
     """
     Sanitize a user-supplied save path into a safe relative key.
 
+    - Rejects paths longer than _MAX_PATH_LENGTH chars.
     - Splits on '/' and applies secure_filename to each component.
     - Returns None if any component is empty after sanitization (catches '..', '.', etc.)
+    - Rejects paths deeper than _MAX_PATH_DEPTH levels.
     - Safe for both local filesystem paths and S3 object keys.
     """
+    if len(raw) > _MAX_PATH_LENGTH:
+        return None
+
     parts = raw.replace("\\", "/").split("/")
     safe: list[str] = []
     for part in parts:
@@ -25,6 +34,10 @@ def sanitize_path(raw: str) -> str | None:
         if not cleaned:
             return None  # '..' or '.' collapsed to empty → reject
         safe.append(cleaned)
+
+    if len(safe) > _MAX_PATH_DEPTH:
+        return None
+
     return "/".join(safe) if safe else None
 
 

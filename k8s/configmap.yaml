@@ -12,3 +12,6 @@ data:
   RATE_LIMIT: "60/minute"
   # Empty = logs go to stdout only (correct for K8s / log aggregators)
   LOG_FOLDER: ""
+  # Set to your ingress controller pod CIDR so X-Forwarded-For is trusted
+  # Example: "10.0.0.0/8" or "172.16.0.0/12"
+  TRUSTED_PROXIES: ""
